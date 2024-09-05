@@ -6,6 +6,7 @@ const Order = require('../models/orderModel');
 const Product = require('../models/productModel');
 const Cart = require('../models/cartModel');
 const factory = require('./handlerFactory');
+const User = require('../models/userModel');
 
 exports.createCashOrder = catchAsync(async (req, res, next) => {
   const taxPrice = 0;
@@ -37,17 +38,18 @@ exports.createCashOrder = catchAsync(async (req, res, next) => {
   //   await product.save();
   // });
 
-  const bulkOptions = cart.cartItems.map((item) => ({
-    updateOne: {
-      filter: { _id: item.product },
-      update: { $inc: { quantity: -item.quantity, sold: item.quantity } },
-    },
-  }));
+  if (order) {
+    const bulkOptions = cart.cartItems.map((item) => ({
+      updateOne: {
+        filter: { _id: item.product },
+        update: { $inc: { quantity: -item.quantity, sold: item.quantity } },
+      },
+    }));
 
-  await Product.bulkWrite(bulkOptions);
-  //5)clear cart
-  await Cart.findByIdAndDelete(req.params.cartId);
-
+    await Product.bulkWrite(bulkOptions);
+    //5)clear cart
+    await Cart.findByIdAndDelete(req.params.cartId);
+  }
   res.status(200).json({
     status: 'success',
     data: order,
@@ -138,5 +140,66 @@ exports.getCheckoutSession = catchAsync(async (req, res, next) => {
   res.status(200).json({
     status: 'success',
     session,
+  });
+});
+
+const createOrder = async (session) => {
+  //these data is extracted form the session returned so see the session first
+  const cartId = session.client_reference_id;
+  const shippingAddress = session.metadata;
+  const orderPrice = session.display_items[0].amount / 100;
+
+  const cart = await Cart.findById(cartId);
+  const user = await User.findOne({ email: session.customer_email });
+
+  //create order with paymentMethodType card
+  const order = await Order.create({
+    user: user._id,
+    cartItems: cart.cartItems,
+    totalOrderPrice: orderPrice,
+    shippingAddress,
+    isPaid: true,
+    paidAt: Date.now(),
+    paymentMethodType: 'card',
+  });
+
+  if (order) {
+    const bulkOptions = cart.cartItems.map((item) => ({
+      updateOne: {
+        filter: { _id: item.product },
+        update: { $inc: { quantity: -item.quantity, sold: item.quantity } },
+      },
+    }));
+
+    await Product.bulkWrite(bulkOptions);
+
+    // clear cart
+    await Cart.findByIdAndDelete(cartId);
+  }
+};
+
+//will work only if the app is deployed
+exports.webhookCheckout = catchAsync(async (req, res) => {
+  const sig = req.headers['stripe-signature'];
+
+  let event;
+
+  try {
+    event = stripe.webhooks.constructEvent(
+      req.body,
+      sig,
+      process.env.STRIPE_WEBHOOK_SECRET,
+    );
+  } catch (err) {
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+
+  if (event.type === 'checkout.session.completed') {
+    //create order
+    createOrder(event.data.object);
+  }
+
+  res.status(200).json({
+    message: 'order created',
   });
 });

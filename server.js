@@ -6,7 +6,7 @@ const express = require('express');
 const morgan = require('morgan');
 const cookieParser = require('cookie-parser');
 const cors = require('cors');
-const commpresion = require('compression');
+const compression = require('compression');
 
 // Reading the .env file
 require('dotenv').config({ path: './config.env' });
@@ -17,6 +17,7 @@ const AppError = require('./utils/appError');
 
 //routes
 const mountRoutes = require('./routes/index');
+const { webhookCheckout } = require('./controllers/orderControllers');
 
 // this will read the index file in this folder first
 
@@ -45,7 +46,7 @@ app.use(cookieParser());
 
 app.use(cors()); // This will enable CORS for all routes
 app.options('*', cors());
-app.use(commpresion());
+app.use(compression());
 
 // If you want to restrict to specific origins, you can configure it like this:
 // app.use(
@@ -53,6 +54,13 @@ app.use(commpresion());
 //     origin: 'http://localhost:3000', // Allow requests only from this origin
 //   }),
 // );
+
+//webhook checkout happens after user pay successfully
+app.post(
+  '/webhook-checkout',
+  express.raw({ type: 'application/json' }),
+  webhookCheckout,
+);
 
 // Logging requests for development
 if (process.env.NODE_ENV === 'development') app.use(morgan('dev'));
