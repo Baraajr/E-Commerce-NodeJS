@@ -1,6 +1,4 @@
-const stripe = require('stripe')(
-  'sk_test_51PvGTwLTozjnFlAKCEnpT0cKOpsBwOwlXDhHxw2HS39rdZljRULDFwNmq7zcZbTV8vkIwuxk5bMvtBwt3FFXu3Sv00LT7lq0N8',
-);
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 const catchAsync = require('../utils/catchAsync');
 const AppError = require('../utils/appError');

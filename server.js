@@ -8,12 +8,16 @@ const cookieParser = require('cookie-parser');
 const cors = require('cors');
 const commpresion = require('compression');
 
+// Reading the .env file
+require('dotenv').config({ path: './config.env' });
+
 const connectDb = require('./config/db');
 const globalErrorHandler = require('./middlewares/errorHandler');
 const AppError = require('./utils/appError');
 
 //routes
 const mountRoutes = require('./routes/index');
+
 // this will read the index file in this folder first
 
 // Handle uncaught exceptions
@@ -21,9 +25,6 @@ process.on('uncaughtException', (err) => {
   console.log('Uncaught Exception: Shutting down...');
   console.log(err.stack || err.message);
 });
-
-// Reading the .env file
-require('dotenv').config({ path: './config.env' });
 
 // Initialize the application
 const app = express();
