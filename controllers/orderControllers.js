@@ -188,28 +188,33 @@ const createOrder = async (session) => {
 
 //will work only if the app is deployed
 exports.webhookCheckout = catchAsync(async (req, res) => {
+  const sig = req.headers['stripe-signature'];
+  let event;
+
   try {
-    const sig = req.headers['stripe-signature'];
-    let event;
-
-    try {
-      event = stripe.webhooks.constructEvent(
-        req.body,
-        sig,
-        process.env.STRIPE_WEBHOOK_SECRET,
-      );
-    } catch (err) {
-      console.error('Stripe webhook error:', err.message);
-      return res.status(400).send(`Webhook Error: ${err.message}`);
-    }
-
-    if (event.type === 'checkout.session.completed') {
-      await createOrder(event.data.object);
-    }
-
-    res.status(200).json({ message: 'order created' });
-  } catch (error) {
-    console.error('Error in webhookCheckout:', error);
-    res.status(400).json({ message: error });
+    // Construct the event from the raw body and signature
+    event = stripe.webhooks.constructEvent(
+      req.body, // req.body is raw Buffer here
+      sig,
+      process.env.STRIPE_WEBHOOK_SECRET,
+    );
+  } catch (err) {
+    // If signature verification fails, return an error
+    console.error('Stripe Webhook Signature Verification Error:', err.message);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
   }
+
+  // Handle the event (e.g., checkout.session.completed)
+  if (event.type === 'checkout.session.completed') {
+    const session = event.data.object;
+    // Call your order creation function here, passing the session
+    try {
+      await createOrder(session);
+    } catch (error) {
+      console.error('Error creating order:', error);
+      return res.status(500).json({ message: 'Failed to create order' });
+    }
+  }
+
+  res.status(200).json({ received: true });
 });
