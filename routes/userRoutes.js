@@ -18,7 +18,11 @@ router.use(authControllers.protect);
 
 /////////////////////////////      logged user ROUTES      /////////////////////////////
 
-router.get('/getMe', userControllers.getLoggedUserData);
+router.get(
+  '/getMe',
+  userControllers.getLoggedUserData,
+  userControllers.getUser,
+);
 
 router.patch(
   '/updateMe',
