@@ -124,7 +124,7 @@ exports.getCheckoutSession = catchAsync(async (req, res, next) => {
           product_data: {
             name: `Order for ${req.user.name}`,
           },
-          unit_amount: Math.round(totalOrderPrice * 100), // Stripe expects the amount in the smallest currency unit
+          unit_amount: Math.round(totalOrderPrice * 100), // Stripe expects amount in the smallest currency unit
         },
         quantity: 1,
       },
@@ -134,7 +134,7 @@ exports.getCheckoutSession = catchAsync(async (req, res, next) => {
     cancel_url: `${req.protocol}://${req.get('host')}/cart`,
     customer_email: req.user.email,
     client_reference_id: cart.id,
-    metadata: req.body.shippingAddress,
+    metadata: req.body.shippingAddress || {}, // Ensure metadata is set correctly, even if shippingAddress is undefined
   });
 
   res.status(200).json({
@@ -143,17 +143,17 @@ exports.getCheckoutSession = catchAsync(async (req, res, next) => {
   });
 });
 
-const createOrder = async (session, next) => {
+const createOrder = async (session) => {
   try {
     const cartId = session.client_reference_id;
-    const shippingAddress = session.metadata;
+    const shippingAddress = session.metadata || {}; // Use an empty object if no shipping address provided
     const orderPrice = session.amount_total / 100;
 
     const cart = await Cart.findById(cartId);
     const user = await User.findOne({ email: session.customer_email });
 
     if (!cart || !user) {
-      return next(new AppError('Cart or user not found', 400));
+      throw new Error('Cart or user not found');
     }
 
     const order = await Order.create({
@@ -166,7 +166,7 @@ const createOrder = async (session, next) => {
       paymentMethodType: 'card',
     });
 
-    //update product quantity and sold fields
+    // Update product quantity and sold fields
     if (order) {
       const bulkOptions = cart.cartItems.map((item) => ({
         updateOne: {
@@ -177,38 +177,40 @@ const createOrder = async (session, next) => {
 
       await Product.bulkWrite(bulkOptions);
 
-      //clear cart
+      // Clear the cart
       await Cart.findByIdAndDelete(cartId);
     }
   } catch (error) {
-    return next(new AppError(`Error creating order:error `, 400));
+    console.error('Error creating order:', error);
+    throw error; // Handle this properly in the calling function
   }
 };
 
 //will work only if the app is deployed
 exports.webhookCheckout = catchAsync(async (req, res) => {
+  const sig = req.headers['stripe-signature'];
+  let event;
+
   try {
-    const sig = req.headers['stripe-signature'];
-    let event;
-
-    try {
-      event = stripe.webhooks.constructEvent(
-        req.body,
-        sig,
-        process.env.STRIPE_WEBHOOK_SECRET,
-      );
-    } catch (err) {
-      return res.status(400).send(`Webhook Error: ${err.message}`);
-    }
-
-    if (event.type === 'checkout.session.completed') {
-      createOrder(event.data.object);
-    }
-
-    res.status(200).json({ message: 'order created' });
-  } catch (error) {
-    res
-      .status(400)
-      .json({ message: 'Error in webhookCheckout:', error: error });
+    event = stripe.webhooks.constructEvent(
+      req.body,
+      sig,
+      process.env.STRIPE_WEBHOOK_SECRET,
+    );
+  } catch (err) {
+    console.error('⚠️  Webhook signature verification failed:', err.message);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
   }
+
+  // Handle the event
+  if (event.type === 'checkout.session.completed') {
+    try {
+      await createOrder(event.data.object);
+      return res.status(200).json({ message: 'Order created successfully' });
+    } catch (error) {
+      return res.status(400).json({ message: 'Error creating order', error });
+    }
+  }
+
+  res.status(200).json({ message: 'Webhook received' });
 });
