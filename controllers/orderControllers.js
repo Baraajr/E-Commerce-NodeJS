@@ -190,6 +190,10 @@ exports.webhookCheckout = catchAsync(async (req, res) => {
   const sig = req.headers['stripe-signature'];
   let event;
 
+  return res.status(200).json({
+    signature: sig,
+    requestBody: req.body,
+  });
   try {
     event = stripe.webhooks.constructEvent(
       req.body, // Use the raw body, no need for JSON.parse
