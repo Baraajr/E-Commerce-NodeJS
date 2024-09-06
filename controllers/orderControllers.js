@@ -202,7 +202,7 @@ exports.webhookCheckout = catchAsync(async (req, res) => {
 
   // Handle the event
   if (event.type === 'checkout.session.completed') {
-    await createOrder(event.data.object);
+    await createOrder(event.data.object, req, res);
     return res.status(200).json({ message: 'Order created successfully' });
   }
 
