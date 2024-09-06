@@ -143,7 +143,7 @@ exports.getCheckoutSession = catchAsync(async (req, res, next) => {
   });
 });
 
-const createOrder = async (session) => {
+const createOrder = async (session, req, res) => {
   try {
     const cartId = session.client_reference_id;
     const shippingAddress = session.metadata || {}; // Use an empty object if no shipping address provided
@@ -153,7 +153,7 @@ const createOrder = async (session) => {
     const user = await User.findOne({ email: session.customer_email });
 
     if (!cart || !user) {
-      throw new Error('Cart or user not found');
+      return res.status(400).send('Cart or user not found');
     }
 
     const order = await Order.create({
@@ -181,8 +181,7 @@ const createOrder = async (session) => {
       await Cart.findByIdAndDelete(cartId);
     }
   } catch (error) {
-    console.error('Error creating order:', error);
-    throw error; // Handle this properly in the calling function
+    return res.status(400).send(error); // Handle this properly in the calling function
   }
 };
 
@@ -193,24 +192,19 @@ exports.webhookCheckout = catchAsync(async (req, res) => {
 
   try {
     event = stripe.webhooks.constructEvent(
-      req.body,
+      JSON.parse(req.body),
       sig,
       process.env.STRIPE_WEBHOOK_SECRET,
     );
   } catch (err) {
-    console.error('⚠️  Webhook signature verification failed:', err.message);
-    return res.status(400).send(`Webhook Error: ${err.message}`);
+    return res.status(400).send(`Webhook Error: ${err}`);
   }
 
   // Handle the event
   if (event.type === 'checkout.session.completed') {
-    try {
-      await createOrder(event.data.object);
-      return res.status(200).json({ message: 'Order created successfully' });
-    } catch (error) {
-      return res.status(400).json({ message: 'Error creating order', error });
-    }
+    createOrder(event.data.object);
+    return res.status(200).json({ message: 'Order created successfully' });
   }
 
-  res.status(200).json({ message: 'Webhook received' });
+  res.status(200).send('Webhook received');
 });
