@@ -22,7 +22,7 @@ const createAndSendToken = (user, status, req, res) => {
       Date.now() + process.env.JWT_COOKIE_EXPIRES_IN * 24 * 60 * 60 * 1000,
     ),
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: req.secure === true || req.headers['x-forwarded-proto'] === 'https',
   };
 
   //2) save the token to the cookies
