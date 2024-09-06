@@ -30,6 +30,9 @@ process.on('uncaughtException', (err) => {
 // Initialize the application
 const app = express();
 
+//trust proxies
+app.enable('trust proxy');
+
 //middlewares
 
 // For parsing request bodies
