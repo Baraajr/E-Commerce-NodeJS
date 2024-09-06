@@ -143,7 +143,7 @@ exports.getCheckoutSession = catchAsync(async (req, res, next) => {
   });
 });
 
-const createOrder = async (session) => {
+const createOrder = async (session, next) => {
   try {
     const cartId = session.client_reference_id;
     const shippingAddress = session.metadata;
@@ -153,7 +153,7 @@ const createOrder = async (session) => {
     const user = await User.findOne({ email: session.customer_email });
 
     if (!cart || !user) {
-      throw new Error('Cart or user not found');
+      return next(new AppError('Cart or user not found', 400));
     }
 
     const order = await Order.create({
@@ -181,8 +181,7 @@ const createOrder = async (session) => {
       await Cart.findByIdAndDelete(cartId);
     }
   } catch (error) {
-    console.error('Error creating order:', error);
-    throw error;
+    return next(new AppError(`Error creating order:error `, 400));
   }
 };
 
@@ -199,17 +198,17 @@ exports.webhookCheckout = catchAsync(async (req, res) => {
         process.env.STRIPE_WEBHOOK_SECRET,
       );
     } catch (err) {
-      console.error('Stripe webhook error:', err.message);
       return res.status(400).send(`Webhook Error: ${err.message}`);
     }
 
     if (event.type === 'checkout.session.completed') {
-      await createOrder(event.data.object);
+      createOrder(event.data.object);
     }
 
     res.status(200).json({ message: 'order created' });
   } catch (error) {
-    console.error('Error in webhookCheckout:', error);
-    res.status(400).json({ message: error });
+    res
+      .status(400)
+      .json({ message: 'Error in webhookCheckout:', error: error });
   }
 });

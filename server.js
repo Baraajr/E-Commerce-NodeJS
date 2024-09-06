@@ -33,6 +33,13 @@ const app = express();
 //trust proxies
 app.enable('trust proxy');
 
+//webhook checkout happens after user pay successfully
+app.post(
+  '/webhook-checkout',
+  express.raw({ type: 'application/json' }),
+  webhookCheckout,
+);
+
 //middlewares
 
 // For parsing request bodies
@@ -57,13 +64,6 @@ app.use(compression());
 //     origin: 'http://localhost:3000', // Allow requests only from this origin
 //   }),
 // );
-
-//webhook checkout happens after user pay successfully
-app.post(
-  '/webhook-checkout',
-  express.raw({ type: 'application/json' }),
-  webhookCheckout,
-);
 
 // Logging requests for development
 if (process.env.NODE_ENV === 'development') app.use(morgan('dev'));
