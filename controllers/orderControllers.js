@@ -192,12 +192,12 @@ exports.webhookCheckout = catchAsync(async (req, res) => {
 
   try {
     event = stripe.webhooks.constructEvent(
-      JSON.parse(req.body),
+      req.body, // Use the raw body, no need for JSON.parse
       sig,
       process.env.STRIPE_WEBHOOK_SECRET,
     );
   } catch (err) {
-    return res.status(400).send(`Webhook Error: ${err}`);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
   }
 
   // Handle the event
