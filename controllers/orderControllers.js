@@ -190,18 +190,14 @@ exports.webhookCheckout = catchAsync(async (req, res) => {
   const sig = req.headers['stripe-signature'];
   let event;
 
-  return res.status(200).json({
-    signature: sig,
-    requestBody: req.body,
-  });
   try {
     event = stripe.webhooks.constructEvent(
-      req.body, // Use the raw body, no need for JSON.parse
+      JSON.parse(req.body),
       sig,
       process.env.STRIPE_WEBHOOK_SECRET,
     );
   } catch (err) {
-    return res.status(400).send(`Webhook Error: ${err.message}`);
+    return res.status(400).json({ 'Webhook Error': err.message, event });
   }
 
   // Handle the event
