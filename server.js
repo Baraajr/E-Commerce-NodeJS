@@ -5,6 +5,7 @@ const path = require('path');
 const express = require('express');
 const morgan = require('morgan');
 const cookieParser = require('cookie-parser');
+const bodyParser = require('body-parser');
 const cors = require('cors');
 const compression = require('compression');
 
@@ -36,7 +37,7 @@ app.enable('trust proxy');
 //webhook checkout happens after user pay successfully
 app.post(
   '/webhook-checkout',
-  express.raw({ type: 'application/json' }),
+  bodyParser.raw({ type: 'application/json' }),
   webhookCheckout,
 );
 
