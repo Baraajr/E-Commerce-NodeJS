@@ -8,6 +8,10 @@ const cookieParser = require('cookie-parser');
 const bodyParser = require('body-parser');
 const cors = require('cors');
 const compression = require('compression');
+const rateLimit = require('express-rate-limit');
+const hpp = require('hpp');
+const mongoSanitize = require('express-mongo-sanitize');
+const xss = require('xss-clean');
 
 // Reading the .env file
 require('dotenv').config({ path: './config.env' });
@@ -31,9 +35,6 @@ process.on('uncaughtException', (err) => {
 // Initialize the application
 const app = express();
 
-//trust proxies
-app.enable('trust proxy');
-
 //webhook checkout happens after user pay successfully
 app.post(
   '/webhook-checkout',
@@ -44,7 +45,13 @@ app.post(
 //middlewares
 
 // For parsing request bodies
-app.use(express.json());
+app.use(express.json({ limit: '20kb' }));
+
+// mongo sanitization prevents mongo query injection
+app.use(mongoSanitize());
+
+// protects from scripting
+app.use(xss());
 
 // static files
 app.use(express.static(path.join(__dirname, 'uploads')));
@@ -59,12 +66,26 @@ app.use(cors()); // This will enable CORS for all routes
 app.options('*', cors());
 app.use(compression());
 
-// If you want to restrict to specific origins, you can configure it like this:
-// app.use(
-//   cors({
-//     origin: 'http://localhost:3000', // Allow requests only from this origin
-//   }),
-// );
+// limit the requests
+const limiter = rateLimit({
+  max: 100,
+  windowMs: 15 * 60 * 100,
+  message: 'too many requests from this ip , pleas try again in an 15 mins ',
+}); // this will allow 100 request for same ip in 1 hour
+app.use('/api', limiter); // only apply the limiter to the route /api
+
+//prevent parameter Pollution
+app.use(
+  hpp({
+    whitelist: [
+      'price',
+      'sold',
+      'quantity',
+      'ratingsAverage',
+      'ratingsQuantity',
+    ],
+  }),
+); //should be after the body parser
 
 // Logging requests for development
 if (process.env.NODE_ENV === 'development') app.use(morgan('dev'));
